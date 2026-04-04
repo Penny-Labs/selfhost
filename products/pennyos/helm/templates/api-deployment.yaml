@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pennyos.apiServiceName" . }}
+  labels:
+    {{- include "pennyos.api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pennyos.api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pennyos.api.selectorLabels" . | nindent 8 }}
+        {{- with .Values.api.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.api.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "pennyos.apiServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: api
+          image: "{{ required "api.image.repository is required" .Values.api.image.repository }}:{{ required "api.image.tag is required" .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          args:
+            - serve
+            - --port={{ .Values.api.containerPort }}
+            {{- range .Values.api.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.containerPort }}
+              protocol: TCP
+          env:
+            - name: DB_HOSTNAME
+              value: {{ include "pennyos.db.host" . | quote }}
+            - name: DB_PORT
+              value: {{ include "pennyos.db.port" . | quote }}
+            - name: DB_NAME
+              value: {{ include "pennyos.db.name" . | quote }}
+            - name: DB_USER
+              value: {{ include "pennyos.db.user" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pennyos.db.passwordSecretName" . | quote }}
+                  key: {{ include "pennyos.db.passwordSecretKey" . | quote }}
+            - name: DB_SSLMODE
+              value: {{ include "pennyos.db.sslmode" . | quote }}
+            - name: IAM_TENANT
+              value: {{ .Values.auth.tenant | quote }}
+            - name: IAM_SESSION_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pennyos.authSecretName" . | quote }}
+                  key: {{ .Values.auth.sessionSigningKeyKey | quote }}
+            - name: IAM_SESSION_SIGNING_KEY_ID
+              value: {{ .Values.auth.sessionSigningKeyId | quote }}
+            - name: IAM_SESSION_ISSUER
+              value: {{ .Values.auth.sessionIssuer | quote }}
+            - name: IAM_SESSION_AUDIENCE
+              value: {{ .Values.auth.sessionAudience | quote }}
+            - name: IAM_SESSION_TTL
+              value: {{ .Values.auth.sessionTTL | quote }}
+            - name: IAM_SESSION_COOKIE_NAME
+              value: {{ .Values.auth.sessionCookieName | quote }}
+            - name: IAM_SESSION_COOKIE_PATH
+              value: {{ .Values.auth.sessionCookiePath | quote }}
+            - name: IAM_SESSION_COOKIE_DOMAIN
+              value: {{ .Values.auth.sessionCookieDomain | quote }}
+            - name: IAM_COOKIE_SECURE
+              value: {{ ternary "true" "false" .Values.auth.cookieSecure | quote }}
+            {{- with .Values.api.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.api.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: {{ .Values.api.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: {{ .Values.api.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.readinessProbe.failureThreshold }}
+          {{- with .Values.api.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

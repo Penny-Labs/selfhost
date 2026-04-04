@@ -1,0 +1,84 @@
+{{- if .Values.migrations.enabled }}
+{{- $hookEvents := "pre-install,pre-upgrade" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- $hookEvents = "post-install,pre-upgrade" -}}
+{{- end -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-migrate" (include "pennyos.fullname" .) }}
+  labels:
+    {{- include "pennyos.api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": {{ $hookEvents | quote }}
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+    {{- with .Values.migrations.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "pennyos.api.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+      {{- with .Values.migrations.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "pennyos.migrationsServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: "{{ required "api.image.repository is required" .Values.api.image.repository }}:{{ required "api.image.tag is required" .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command:
+            - /penny
+          args:
+            - migrate
+            - up
+            - --target
+            - both
+            - --penny-migrations-path=/migrations/penny
+            - --openauth-migrations-path=/migrations/openauth
+          env:
+            - name: DB_HOSTNAME
+              value: {{ include "pennyos.db.host" . | quote }}
+            - name: DB_PORT
+              value: {{ include "pennyos.db.port" . | quote }}
+            - name: DB_NAME
+              value: {{ include "pennyos.db.name" . | quote }}
+            - name: DB_USER
+              value: {{ include "pennyos.db.user" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pennyos.db.passwordSecretName" . | quote }}
+                  key: {{ include "pennyos.db.passwordSecretKey" . | quote }}
+            - name: DB_SSLMODE
+              value: {{ include "pennyos.db.sslmode" . | quote }}
+            {{- with .Values.migrations.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.migrations.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.migrations.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,185 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+api:
+  replicaCount: 1
+  containerPort: 8080
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: false
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+  extraArgs: []
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+  extraEnvFrom: []
+  livenessProbe:
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 2
+    failureThreshold: 6
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 6
+
+web:
+  replicaCount: 1
+  containerPort: 3000
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: false
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+  apiBaseUrl: ""
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+  extraEnvFrom: []
+  livenessProbe:
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 2
+    failureThreshold: 6
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 6
+
+auth:
+  existingSecret: ""
+  sessionSigningKey: ""
+  sessionSigningKeyKey: "IAM_SESSION_SIGNING_KEY"
+  tenant: "penny"
+  sessionSigningKeyId: "penny-session-v1"
+  sessionIssuer: "penny-api"
+  sessionAudience: "penny-api"
+  sessionTTL: "24h"
+  sessionCookieName: "penny_session_token"
+  sessionCookiePath: "/"
+  sessionCookieDomain: ""
+  cookieSecure: true
+
+database:
+  internal:
+    host: ""
+    port: 5432
+    sslmode: "disable"
+    passwordSecret:
+      name: ""
+      key: "password"
+  external:
+    host: ""
+    port: 5432
+    name: "penny"
+    user: "postgres"
+    password: ""
+    sslmode: "disable"
+    existingSecret: ""
+    passwordKey: "password"
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  pathType: Prefix
+  webPathPrefix: "/"
+  apiPathPrefix: "/v1"
+  web:
+    host: "penny.local"
+    tls:
+      enabled: false
+      secretName: ""
+  api:
+    separateHost:
+      enabled: false
+      host: "api.penny.local"
+      tls:
+        enabled: false
+        secretName: ""
+
+gateway:
+  enabled: false
+  publicScheme: "http"
+  annotations: {}
+  labels: {}
+  parentRefs: []
+  web:
+    host: "penny.local"
+    pathPrefix: "/"
+  api:
+    pathPrefix: "/v1"
+    separateHost:
+      enabled: false
+      host: "api.penny.local"
+
+migrations:
+  enabled: true
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: false
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 300
+  annotations: {}
+  podAnnotations: {}
+  resources: {}
+  extraEnv: []
+  extraEnvFrom: []
+
+postgresql:
+  enabled: true
+  auth:
+    username: penny
+    password: penny
+    database: penny
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
