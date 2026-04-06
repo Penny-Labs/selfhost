@@ -48,27 +48,11 @@ helm upgrade --install pennyos selfhost/products/pennyos/helm \
   --set web.image.tag=v1.2.3 \
   --set auth.sessionSigningKey='replace-with-strong-secret' \
   --set postgresql.enabled=false \
-  --set database.external.host=postgres.example.internal \
-  --set database.external.port=5432 \
-  --set database.external.name=penny \
-  --set database.external.user=penny \
-  --set database.external.password='replace-db-password'
-```
-
-## Ingress Modes
-
-Default mode (`ingress.enabled=true`, `ingress.api.separateHost.enabled=false`):
-- `ingress.web.host` serves web at `/`
-- same host routes `/v1` to API
-
-Separate API host mode:
-
-```yaml
-ingress:
-  api:
-    separateHost:
-      enabled: true
-      host: api.example.com
+  --set database.host=postgres.example.internal \
+  --set database.port=5432 \
+  --set database.name=penny \
+  --set database.user=penny \
+  --set database.password='replace-db-password'
 ```
 
 ## Gateway API HTTPRoute
@@ -82,16 +66,20 @@ gateway:
     - name: public-gateway
 ```
 
-Default behavior mirrors Ingress:
-- single host routes `/v1` to API and `/` to web
-- optional separate API host via `gateway.api.separateHost.enabled=true`
+Default gateway behavior:
+- always generates 2 HTTPRoutes on `gateway.web.host`:
+  - web route (`gateway.web.pathPrefix`) to web service
+  - api route (`gateway.api.pathPrefix`) to api service
+- when `gateway.api.separateHost.enabled=true`, generates a 3rd HTTPRoute for API on `gateway.api.separateHost.host`
+- optional web HTTPS redirect filter via:
+  - `gateway.web.httpsRedirect.enabled=true`
+  - `gateway.web.httpsRedirect.statusCode` (default `301`)
 
 ## Web API Base URL
 
 - `web.apiBaseUrl`: optional explicit override
-- If unset and ingress is enabled, the chart derives it from ingress host/tls settings.
-- If ingress is disabled and gateway is enabled, it derives from gateway host settings.
-- If unset and ingress is disabled, it defaults to the in-cluster API service URL.
+- If unset and gateway is enabled, it derives from gateway host settings.
+- If unset and gateway is disabled, it defaults to the in-cluster API service URL.
 
 ## Migration Hook Job
 
@@ -110,26 +98,20 @@ Hook behavior:
 - `web.serviceAccount.*`
 - `web.image.*`
 - `web.apiBaseUrl`
-- `ingress.enabled`
-- `ingress.className`
-- `ingress.annotations`
-- `ingress.web.host`
-- `ingress.web.tls.*`
-- `ingress.api.separateHost.enabled`
-- `ingress.api.separateHost.host`
-- `ingress.api.separateHost.tls.*`
 - `gateway.enabled`
 - `gateway.parentRefs`
 - `gateway.annotations`
 - `gateway.labels`
 - `gateway.web.host`
 - `gateway.web.pathPrefix`
+- `gateway.web.httpsRedirect.enabled`
+- `gateway.web.httpsRedirect.statusCode`
 - `gateway.api.pathPrefix`
 - `gateway.api.separateHost.enabled`
 - `gateway.api.separateHost.host`
 - `gateway.publicScheme`
 - `postgresql.enabled`
-- `database.external.*`
+- `database.*`
 - `auth.existingSecret`
 - `auth.sessionSigningKey`
 - `migrations.serviceAccount.*`

@@ -12,8 +12,8 @@ api:
     annotations: {}
     automountServiceAccountToken: false
   image:
-    repository: ""
-    tag: ""
+    repository: "ghcr.io/penny-labs/pennyos/system"
+    tag: "latest"
     pullPolicy: IfNotPresent
   extraArgs: []
   service:
@@ -56,8 +56,8 @@ web:
     annotations: {}
     automountServiceAccountToken: false
   image:
-    repository: ""
-    tag: ""
+    repository: "ghcr.io/penny-labs/pennyos/web"
+    tag: "latest"
     pullPolicy: IfNotPresent
   apiBaseUrl: ""
   service:
@@ -105,42 +105,15 @@ auth:
   cookieSecure: true
 
 database:
-  internal:
-    host: ""
-    port: 5432
-    sslmode: "disable"
-    passwordSecret:
-      name: ""
-      key: "password"
-  external:
-    host: ""
-    port: 5432
-    name: "penny"
-    user: "postgres"
-    password: ""
-    sslmode: "disable"
-    existingSecret: ""
-    passwordKey: "password"
-
-ingress:
-  enabled: true
-  className: ""
-  annotations: {}
-  pathType: Prefix
-  webPathPrefix: "/"
-  apiPathPrefix: "/v1"
-  web:
-    host: "penny.local"
-    tls:
-      enabled: false
-      secretName: ""
-  api:
-    separateHost:
-      enabled: false
-      host: "api.penny.local"
-      tls:
-        enabled: false
-        secretName: ""
+  host: ""
+  port: 5432
+  name: "penny"
+  user: "penny"
+  password: ""
+  sslmode: "disable"
+  passwordSecret:
+    name: ""
+    key: "password"
 
 gateway:
   enabled: false
@@ -151,6 +124,9 @@ gateway:
   web:
     host: "penny.local"
     pathPrefix: "/"
+    httpsRedirect:
+      enabled: false
+      statusCode: 301
   api:
     pathPrefix: "/v1"
     separateHost:
@@ -174,7 +150,7 @@ migrations:
   extraEnvFrom: []
 
 postgresql:
-  enabled: true
+  enabled: false
   auth:
     username: penny
     password: penny

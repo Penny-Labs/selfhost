@@ -93,9 +93,11 @@ app.kubernetes.io/component: web
 {{- end -}}
 {{- end -}}
 
-{{- define "pennyos.externalDBSecretName" -}}
-{{- if .Values.database.external.existingSecret -}}
-{{- .Values.database.external.existingSecret -}}
+{{- define "pennyos.dbSecretName" -}}
+{{- if .Values.database.passwordSecret.name -}}
+{{- .Values.database.passwordSecret.name -}}
+{{- else if .Values.postgresql.enabled -}}
+{{- printf "%s-postgresql" .Release.Name -}}
 {{- else -}}
 {{- printf "%s-external-db" (include "pennyos.fullname" .) -}}
 {{- end -}}
@@ -103,67 +105,37 @@ app.kubernetes.io/component: web
 
 {{/* Database helpers */}}
 {{- define "pennyos.db.host" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- if .Values.database.internal.host -}}
-{{- .Values.database.internal.host -}}
-{{- else -}}
+{{- if .Values.database.host -}}
+{{- .Values.database.host -}}
+{{- else if .Values.postgresql.enabled -}}
 {{- printf "%s-postgresql" .Release.Name -}}
-{{- end -}}
 {{- else -}}
-{{- required "database.external.host is required when postgresql.enabled=false" .Values.database.external.host -}}
+{{- required "database.host is required when postgresql.enabled=false" .Values.database.host -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "pennyos.db.port" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- .Values.database.internal.port -}}
-{{- else -}}
-{{- .Values.database.external.port -}}
-{{- end -}}
+{{- default 5432 .Values.database.port -}}
 {{- end -}}
 
 {{- define "pennyos.db.name" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- required "postgresql.auth.database is required when postgresql.enabled=true" .Values.postgresql.auth.database -}}
-{{- else -}}
-{{- required "database.external.name is required when postgresql.enabled=false" .Values.database.external.name -}}
-{{- end -}}
+{{- required "database.name is required" .Values.database.name -}}
 {{- end -}}
 
 {{- define "pennyos.db.user" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- required "postgresql.auth.username is required when postgresql.enabled=true" .Values.postgresql.auth.username -}}
-{{- else -}}
-{{- required "database.external.user is required when postgresql.enabled=false" .Values.database.external.user -}}
-{{- end -}}
+{{- required "database.user is required" .Values.database.user -}}
 {{- end -}}
 
 {{- define "pennyos.db.sslmode" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- default "disable" .Values.database.internal.sslmode -}}
-{{- else -}}
-{{- default "disable" .Values.database.external.sslmode -}}
-{{- end -}}
+{{- default "disable" .Values.database.sslmode -}}
 {{- end -}}
 
 {{- define "pennyos.db.passwordSecretName" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- if .Values.database.internal.passwordSecret.name -}}
-{{- .Values.database.internal.passwordSecret.name -}}
-{{- else -}}
-{{- printf "%s-postgresql" .Release.Name -}}
-{{- end -}}
-{{- else -}}
-{{- include "pennyos.externalDBSecretName" . -}}
-{{- end -}}
+{{- include "pennyos.dbSecretName" . -}}
 {{- end -}}
 
 {{- define "pennyos.db.passwordSecretKey" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- default "password" .Values.database.internal.passwordSecret.key -}}
-{{- else -}}
-{{- default "password" .Values.database.external.passwordKey -}}
-{{- end -}}
+{{- default "password" .Values.database.passwordSecret.key -}}
 {{- end -}}
 
 {{/* Web API base URL helper */}}
@@ -171,16 +143,6 @@ app.kubernetes.io/component: web
 {{- $explicit := trim .Values.web.apiBaseUrl -}}
 {{- if $explicit -}}
 {{- trimSuffix "/" $explicit -}}
-{{- else if .Values.ingress.enabled -}}
-  {{- if .Values.ingress.api.separateHost.enabled -}}
-    {{- $scheme := ternary "https" "http" .Values.ingress.api.separateHost.tls.enabled -}}
-    {{- $host := required "ingress.api.separateHost.host is required when separate API host is enabled" .Values.ingress.api.separateHost.host -}}
-    {{- printf "%s://%s" $scheme $host -}}
-  {{- else -}}
-    {{- $scheme := ternary "https" "http" .Values.ingress.web.tls.enabled -}}
-    {{- $host := required "ingress.web.host is required when ingress is enabled" .Values.ingress.web.host -}}
-    {{- printf "%s://%s" $scheme $host -}}
-  {{- end -}}
 {{- else if .Values.gateway.enabled -}}
   {{- $scheme := default "http" .Values.gateway.publicScheme -}}
   {{- if .Values.gateway.api.separateHost.enabled -}}

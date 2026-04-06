@@ -6,7 +6,9 @@
 {{- $webPath := default "/" .Values.gateway.web.pathPrefix -}}
 {{- $apiPath := default "/v1" .Values.gateway.api.pathPrefix -}}
 {{- $separateAPIHost := .Values.gateway.api.separateHost.enabled -}}
-{{- if $separateAPIHost }}
+{{- $webHTTPSRedirectEnabled := .Values.gateway.web.httpsRedirect.enabled -}}
+{{- $webHTTPSRedirectStatusCode := default 301 .Values.gateway.web.httpsRedirect.statusCode -}}
+
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -31,9 +33,17 @@ spec:
         - path:
             type: PathPrefix
             value: {{ $webPath | quote }}
+      {{- if $webHTTPSRedirectEnabled }}
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: {{ $webHTTPSRedirectStatusCode }}
+      {{- else }}
       backendRefs:
         - name: {{ include "pennyos.webServiceName" . }}
           port: {{ .Values.web.service.port }}
+      {{- end }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -42,34 +52,6 @@ metadata:
   labels:
     {{- include "pennyos.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway-api
-    {{- with .Values.gateway.labels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-  {{- with .Values.gateway.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  parentRefs:
-    {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
-  hostnames:
-    - {{ required "gateway.api.separateHost.host is required when gateway.api.separateHost.enabled=true" .Values.gateway.api.separateHost.host | quote }}
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: {{ $apiPath | quote }}
-      backendRefs:
-        - name: {{ include "pennyos.apiServiceName" . }}
-          port: {{ .Values.api.service.port }}
-{{- else }}
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: {{ include "pennyos.fullname" . }}
-  labels:
-    {{- include "pennyos.labels" . | nindent 4 }}
-    app.kubernetes.io/component: gateway
     {{- with .Values.gateway.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -90,12 +72,34 @@ spec:
       backendRefs:
         - name: {{ include "pennyos.apiServiceName" . }}
           port: {{ .Values.api.service.port }}
+{{- if $separateAPIHost }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ printf "%s-api-separate" (include "pennyos.fullname" .) }}
+  labels:
+    {{- include "pennyos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-api-separate
+    {{- with .Values.gateway.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
+  hostnames:
+    - {{ required "gateway.api.separateHost.host is required when gateway.api.separateHost.enabled=true" .Values.gateway.api.separateHost.host | quote }}
+  rules:
     - matches:
         - path:
             type: PathPrefix
-            value: {{ $webPath | quote }}
+            value: {{ $apiPath | quote }}
       backendRefs:
-        - name: {{ include "pennyos.webServiceName" . }}
-          port: {{ .Values.web.service.port }}
+        - name: {{ include "pennyos.apiServiceName" . }}
+          port: {{ .Values.api.service.port }}
 {{- end }}
 {{- end }}
