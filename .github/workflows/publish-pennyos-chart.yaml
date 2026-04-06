@@ -1,0 +1,77 @@
+name: Publish PennyOS Helm Chart
+
+on:
+  push:
+    tags:
+      - "chart-pennyos-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish_chart:
+    name: publish-oci-chart
+    runs-on: ubuntu-latest
+    env:
+      CHART_PATH: products/pennyos/helm
+      OCI_REPO: oci://ghcr.io/penny-labs/charts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+
+      - name: Parse version from tag
+        id: version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "${TAG}" =~ ^chart-pennyos-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "invalid tag format: ${TAG}" >&2
+            exit 1
+          fi
+
+          echo "version=${BASH_REMATCH[1]}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate chart metadata
+        shell: bash
+        run: |
+          chart_meta="$(helm show chart "${CHART_PATH}")"
+          tag_version="${{ steps.version.outputs.version }}"
+
+          chart_name="$(printf '%s\n' "${chart_meta}" | awk -F': *' '$1=="name" {print $2; exit}')"
+          chart_version="$(printf '%s\n' "${chart_meta}" | awk -F': *' '$1=="version" {print $2; exit}')"
+
+          if [[ "${chart_name}" != "pennyos" ]]; then
+            echo "expected Chart.yaml name to be pennyos, got: ${chart_name}" >&2
+            exit 1
+          fi
+
+          if [[ "${chart_version}" != "${tag_version}" ]]; then
+            echo "Chart.yaml version (${chart_version}) must match tag version (${tag_version})" >&2
+            exit 1
+          fi
+
+      - name: Lint chart
+        run: helm lint "${CHART_PATH}"
+
+      - name: Package chart
+        shell: bash
+        run: |
+          mkdir -p dist
+          helm package "${CHART_PATH}" --destination dist
+          test -f "dist/pennyos-${{ steps.version.outputs.version }}.tgz"
+
+      - name: Login to GHCR
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Push chart to OCI
+        run: helm push "dist/pennyos-${{ steps.version.outputs.version }}.tgz" "${{ env.OCI_REPO }}"
