@@ -127,6 +127,7 @@ gateway:
     httpsRedirect:
       enabled: false
       statusCode: 301
+      parentRefs: []
   api:
     pathPrefix: "/v1"
     separateHost:

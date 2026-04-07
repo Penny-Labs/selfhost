@@ -71,9 +71,34 @@ Default gateway behavior:
   - web route (`gateway.web.pathPrefix`) to web service
   - api route (`gateway.api.pathPrefix`) to api service
 - when `gateway.api.separateHost.enabled=true`, generates a 3rd HTTPRoute for API on `gateway.api.separateHost.host`
-- optional web HTTPS redirect filter via:
+- optional separate web HTTP redirect route via:
   - `gateway.web.httpsRedirect.enabled=true`
   - `gateway.web.httpsRedirect.statusCode` (default `301`)
+  - `gateway.web.httpsRedirect.parentRefs` (required when enabled; typically points to your HTTP listener)
+
+Example HTTPS backend route + HTTP redirect route:
+
+```yaml
+gateway:
+  enabled: true
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: httpgateway
+      sectionName: marone-us-wild-https
+  web:
+    host: plex.marone.us
+    httpsRedirect:
+      enabled: true
+      statusCode: 302
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: shared
+          namespace: httpgateway
+          sectionName: http
+```
 
 ## Web API Base URL
 
@@ -106,6 +131,7 @@ Hook behavior:
 - `gateway.web.pathPrefix`
 - `gateway.web.httpsRedirect.enabled`
 - `gateway.web.httpsRedirect.statusCode`
+- `gateway.web.httpsRedirect.parentRefs`
 - `gateway.api.pathPrefix`
 - `gateway.api.separateHost.enabled`
 - `gateway.api.separateHost.host`
