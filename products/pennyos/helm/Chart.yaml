@@ -2,7 +2,7 @@ apiVersion: v2
 name: pennyos
 description: Combined Helm chart for Penny API and Penny OS web with optional PostgreSQL
 type: application
-version: 0.0.1
+version: 0.0.2
 appVersion: "0.1.0"
 dependencies:
   - name: postgresql
