@@ -21,9 +21,18 @@ web:
     tag: "v1.2.3"
 ```
 
-Authentication signing key must be provided either by:
-- `auth.existingSecret` + `auth.sessionSigningKeyKey`, or
-- `auth.sessionSigningKey` (chart-managed secret)
+By default, the chart runs a bootstrap hook job that generates install-local
+secret material and preserves existing keys across upgrades:
+- `IAM_SESSION_SIGNING_KEY`
+- `PENNY_RUNTIME_LEASE_ENC_KEY`
+- bundled PostgreSQL admin/user passwords when `postgresql.enabled=true`
+
+PennyOS defaults to managed runtime mode. You must also provide:
+- `management.apiUrl`
+- `management.runtimeAutoActivate.licenseKey`, `management.runtimeAutoActivate.licenseKeySecret`, or an `api.extraEnv` entry matching `management.runtimeAutoActivate.licenseKeyEnv`
+
+If `generatedSecrets.enabled=false`, you must provide the auth signing key and
+runtime lease encryption key with direct values or existing Secret refs.
 
 ## Install Example (Bundled Postgres)
 
@@ -35,7 +44,10 @@ helm upgrade --install pennyos selfhost/products/pennyos/helm \
   --set api.image.tag=v1.2.3 \
   --set web.image.repository=ghcr.io/your-org/penny-os \
   --set web.image.tag=v1.2.3 \
-  --set auth.sessionSigningKey='replace-with-strong-secret'
+  --set postgresql.enabled=true \
+  --set management.apiUrl=https://management.example.com \
+  --set management.apiTokenSecret.name=pennyos-management \
+  --set management.runtimeAutoActivate.licenseKeySecret.name=pennyos-management
 ```
 
 ## Install Example (External Postgres)
@@ -46,13 +58,114 @@ helm upgrade --install pennyos selfhost/products/pennyos/helm \
   --set api.image.tag=v1.2.3 \
   --set web.image.repository=ghcr.io/your-org/penny-os \
   --set web.image.tag=v1.2.3 \
-  --set auth.sessionSigningKey='replace-with-strong-secret' \
   --set postgresql.enabled=false \
   --set database.host=postgres.example.internal \
   --set database.port=5432 \
   --set database.name=penny \
   --set database.user=penny \
-  --set database.password='replace-db-password'
+  --set database.password='replace-db-password' \
+  --set management.apiUrl=https://management.example.com \
+  --set management.apiTokenSecret.name=pennyos-management \
+  --set management.runtimeAutoActivate.licenseKeySecret.name=pennyos-management
+```
+
+You can also configure the database with a full DSN. When `database.url` or
+`database.urlSecret.name` is set, the chart renders `DB_URL` and does not render
+the split `DB_HOSTNAME`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and
+`DB_SSLMODE` variables.
+
+```yaml
+database:
+  urlSecret:
+    name: pennyos-db-url
+    key: DB_URL
+```
+
+## Penny API Runtime Configuration
+
+The chart exposes the Penny API environment variables from `penny/internal/app/config.go`.
+It points PennyOS at an already deployed `management-api`; this chart does not deploy `management-api`.
+
+Non-secret API runtime values are rendered into a chart-managed ConfigMap and
+loaded into the Penny API Deployment with `envFrom`. The pod template includes a
+checksum annotation for that ConfigMap, so changing ConfigMap-backed values
+rolls the API Deployment automatically. Secret values stay as `secretKeyRef`
+entries and are not copied into the ConfigMap.
+
+Default managed runtime behavior:
+
+```yaml
+generatedSecrets:
+  enabled: true
+
+management:
+  mode: required
+  apiUrl: https://management.example.com
+  runtimeSecretDir: /var/lib/penny/runtime
+  runtimeLeaseCache: encrypted_file
+  runtimeLeaseCachePath: /var/lib/penny/runtime/runtime_lease.enc.json
+  runtimeAutoActivate:
+    enabled: true
+    licenseKeySecret:
+      name: pennyos-management
+      key: MANAGEMENT_RUNTIME_AUTO_ACTIVATE_LICENSE_KEY
+    licenseKeyEnv: MANAGEMENT_LICENSE_KEY
+    productId: pennyos
+    confirmTransfer: false
+    renewBefore: 5m
+  runtimeWebsocket:
+    enabled: true
+  runtimeStorage:
+    enabled: true
+    mountPath: /var/lib/penny
+    size: 1Gi
+
+sync:
+  provider: managed
+```
+
+Use an existing claim for runtime install keys and encrypted lease cache:
+
+```yaml
+management:
+  runtimeStorage:
+    enabled: true
+    existingClaim: pennyos-runtime
+```
+
+Sensitive fields support direct values for local/dev installs and Secret refs for
+production-style installs. Secret refs win when both are set. Direct values
+without Secret refs create chart-managed Secrets:
+
+- `auth.sessionSigningKey` / `auth.existingSecret` -> `IAM_SESSION_SIGNING_KEY`
+- `database.url` / `database.urlSecret` -> `DB_URL`
+- `management.apiToken` / `management.apiTokenSecret` -> `MANAGEMENT_API_TOKEN`
+- `management.runtimeLeaseEncryptionKey` / `management.runtimeLeaseEncryptionKeySecret` -> `PENNY_RUNTIME_LEASE_ENC_KEY`
+- `management.runtimeAutoActivate.licenseKey` / `management.runtimeAutoActivate.licenseKeySecret` -> `MANAGEMENT_RUNTIME_AUTO_ACTIVATE_LICENSE_KEY`
+
+When `generatedSecrets.enabled=true`, the chart-generated Secret is used as a
+fallback for `IAM_SESSION_SIGNING_KEY` and `PENNY_RUNTIME_LEASE_ENC_KEY` if no
+direct value or existing Secret ref is set. Bundled PostgreSQL also uses the
+generated Secret by default. To supply the bundled PostgreSQL password yourself,
+set `postgresql.auth.existingSecret=""` and `postgresql.auth.password`, or point
+`postgresql.auth.existingSecret` at your own Secret with keys `postgres-password`
+and `password`.
+
+For local-only installs, explicitly opt out:
+
+```yaml
+management:
+  mode: disabled
+  runtimeLeaseCache: memory
+  runtimeAutoActivate:
+    enabled: false
+  runtimeWebsocket:
+    enabled: false
+  runtimeStorage:
+    enabled: false
+
+sync:
+  provider: local
 ```
 
 ## Gateway API HTTPRoute
@@ -105,6 +218,7 @@ gateway:
 - `web.apiBaseUrl`: optional explicit override
 - If unset and gateway is enabled, it derives from gateway host settings.
 - If unset and gateway is disabled, it defaults to the in-cluster API service URL.
+- `PENNY_OS_BUILD_PROFILE` is build-time only in the web image and is not a runtime chart value.
 
 ## Migration Hook Job
 
@@ -120,6 +234,7 @@ Hook behavior:
 
 - `api.serviceAccount.*`
 - `api.image.*`
+- `generatedSecrets.*`
 - `web.serviceAccount.*`
 - `web.image.*`
 - `web.apiBaseUrl`
@@ -138,6 +253,9 @@ Hook behavior:
 - `gateway.publicScheme`
 - `postgresql.enabled`
 - `database.*`
+- `management.*`
+- `management.runtimeStorage.*`
+- `sync.provider`
 - `auth.existingSecret`
 - `auth.sessionSigningKey`
 - `migrations.serviceAccount.*`

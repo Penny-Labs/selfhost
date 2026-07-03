@@ -1,0 +1,21 @@
+{{- if and .Values.management.runtimeStorage.enabled (not .Values.management.runtimeStorage.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pennyos.runtimeStorageClaimName" . }}
+  labels:
+    {{- include "pennyos.api.labels" . | nindent 4 }}
+  {{- with .Values.management.runtimeStorage.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.management.runtimeStorage.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.management.runtimeStorage.size | quote }}
+  {{- with .Values.management.runtimeStorage.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

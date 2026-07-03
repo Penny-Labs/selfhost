@@ -51,21 +51,7 @@ spec:
             - --penny-migrations-path=/migrations/penny
             - --openauth-migrations-path=/migrations/openauth
           env:
-            - name: DB_HOSTNAME
-              value: {{ include "pennyos.db.host" . | quote }}
-            - name: DB_PORT
-              value: {{ include "pennyos.db.port" . | quote }}
-            - name: DB_NAME
-              value: {{ include "pennyos.db.name" . | quote }}
-            - name: DB_USER
-              value: {{ include "pennyos.db.user" . | quote }}
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "pennyos.db.passwordSecretName" . | quote }}
-                  key: {{ include "pennyos.db.passwordSecretKey" . | quote }}
-            - name: DB_SSLMODE
-              value: {{ include "pennyos.db.sslmode" . | quote }}
+{{ include "pennyos.db.env" . | trim | indent 12 }}
             {{- with .Values.migrations.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

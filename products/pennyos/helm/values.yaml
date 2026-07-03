@@ -1,28 +1,69 @@
+# Optional release-wide name overrides.
 nameOverride: ""
 fullnameOverride: ""
 
+# Image pull secrets applied to API, web, migration, and bundled PostgreSQL pods.
 imagePullSecrets: []
 
+# Install-time generated Secrets for values the chart can safely own.
+generatedSecrets:
+  enabled: true
+  # Templated name used by the bootstrap job and, by default, bundled PostgreSQL.
+  name: "{{ .Release.Name }}-pennyos-generated"
+  annotations: {}
+  # Bootstrap job service account. It needs a token so kubectl can create/patch Secrets.
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: true
+  # Namespace-scoped permissions for reading, creating, and patching the generated Secret.
+  rbac:
+    create: true
+  # Helm hook job that preserves existing keys and only generates missing values.
+  job:
+    image:
+      repository: "bitnami/kubectl"
+      tag: "1.31.4"
+      pullPolicy: IfNotPresent
+    backoffLimit: 3
+    activeDeadlineSeconds: 120
+    ttlSecondsAfterFinished: 300
+    annotations: {}
+    podAnnotations: {}
+    resources: {}
+  # Per-key toggles. Existing Secret refs and direct values always take precedence.
+  keys:
+    sessionSigningKey: true
+    runtimeLeaseEncryptionKey: true
+    postgresqlPassword: true
+
+# Penny API deployment and service settings.
 api:
   replicaCount: 1
   containerPort: 8080
+  # API service account controls. Set create=false and name to reuse an existing account.
   serviceAccount:
     create: true
     name: ""
     annotations: {}
     automountServiceAccountToken: false
+  # Penny API image. This image must contain the /penny binary and bundled migrations.
   image:
     repository: "ghcr.io/penny-labs/pennyos/system"
     tag: "latest"
     pullPolicy: IfNotPresent
+  # Extra CLI args appended after `serve --port=<containerPort>`.
   extraArgs: []
   service:
     type: ClusterIP
     port: 8080
     targetPort: 8080
+  # Standard pod metadata, security, resource, and scheduling overrides.
   podAnnotations: {}
   podLabels: {}
-  podSecurityContext: {}
+  podSecurityContext:
+    fsGroup: 65532
   securityContext:
     runAsNonRoot: true
     allowPrivilegeEscalation: false
@@ -34,8 +75,11 @@ api:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Additional API container environment. Chart-managed non-secret env is loaded
+  # from the API ConfigMap first; use these for uncommon or custom env vars.
   extraEnv: []
   extraEnvFrom: []
+  # Root health endpoints are served by the Penny API.
   livenessProbe:
     initialDelaySeconds: 15
     periodSeconds: 20
@@ -47,23 +91,28 @@ api:
     timeoutSeconds: 2
     failureThreshold: 6
 
+# PennyOS web deployment and service settings.
 web:
   replicaCount: 1
   containerPort: 3000
+  # Web service account controls. Set create=false and name to reuse an existing account.
   serviceAccount:
     create: true
     name: ""
     annotations: {}
     automountServiceAccountToken: false
+  # PennyOS web image. PENNY_OS_BUILD_PROFILE is build-time only for this image.
   image:
     repository: "ghcr.io/penny-labs/pennyos/web"
     tag: "latest"
     pullPolicy: IfNotPresent
+  # Overrides NUXT_PUBLIC_PENNY_API_BASE_URL. Empty derives from gateway or in-cluster API service.
   apiBaseUrl: ""
   service:
     type: ClusterIP
     port: 3000
     targetPort: 3000
+  # Standard pod metadata, security, resource, and scheduling overrides.
   podAnnotations: {}
   podLabels: {}
   podSecurityContext: {}
@@ -77,8 +126,10 @@ web:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Additional web container environment.
   extraEnv: []
   extraEnvFrom: []
+  # The web container is probed over its HTTP listener port.
   livenessProbe:
     initialDelaySeconds: 15
     periodSeconds: 20
@@ -90,8 +141,13 @@ web:
     timeoutSeconds: 2
     failureThreshold: 6
 
+# Penny API IAM/session configuration.
 auth:
+  # Existing Secret containing the session signing key. Empty falls back to
+  # auth.sessionSigningKey or the generated Secret.
   existingSecret: ""
+  # Direct signing key value for local/dev chart-managed Secret use. If empty,
+  # generatedSecrets can create IAM_SESSION_SIGNING_KEY automatically.
   sessionSigningKey: ""
   sessionSigningKeyKey: "IAM_SESSION_SIGNING_KEY"
   tenant: "penny"
@@ -104,58 +160,139 @@ auth:
   sessionCookieDomain: ""
   cookieSecure: true
 
+# Database configuration for Penny and OpenAuth storage.
 database:
+  # Full Postgres DSN. When set, DB_URL is rendered and split DB_* env vars are not.
+  url: ""
+  # Existing Secret for DB_URL. Takes precedence over database.url.
+  urlSecret:
+    name: ""
+    key: "DB_URL"
+  # Split database fields used when DB_URL is not configured.
   host: ""
   port: 5432
   name: "penny"
   user: "penny"
+  # Direct password value for local/dev chart-managed Secret use.
   password: ""
   sslmode: "disable"
+  # Existing Secret for DB_PASSWORD. Takes precedence over database.password.
   passwordSecret:
     name: ""
     key: "password"
 
+# Hosted management/runtime integration for the Penny API.
+management:
+  # Penny API management mode: disabled, optional, or required.
+  mode: "required"
+  apiUrl: ""
+  # Direct runtime bearer token for local/dev chart-managed Secret use.
+  apiToken: ""
+  # Existing Secret for MANAGEMENT_API_TOKEN. Takes precedence over apiToken.
+  apiTokenSecret:
+    name: ""
+    key: "MANAGEMENT_API_TOKEN"
+  # Directory used for runtime install private-key custody and optional lease cache files.
+  runtimeSecretDir: "/var/lib/penny/runtime"
+  # Runtime lease cache mode: memory or encrypted_file.
+  runtimeLeaseCache: "encrypted_file"
+  runtimeLeaseCachePath: "/var/lib/penny/runtime/runtime_lease.enc.json"
+  # Direct AES key for encrypted runtime lease cache local/dev use. If empty,
+  # generatedSecrets can create PENNY_RUNTIME_LEASE_ENC_KEY automatically.
+  runtimeLeaseEncryptionKey: ""
+  # Existing Secret for PENNY_RUNTIME_LEASE_ENC_KEY. Takes precedence over runtimeLeaseEncryptionKey.
+  runtimeLeaseEncryptionKeySecret:
+    name: ""
+    key: "PENNY_RUNTIME_LEASE_ENC_KEY"
+  # Runtime activation against management-api.
+  runtimeAutoActivate:
+    enabled: true
+    # Direct license key for local/dev chart-managed Secret use.
+    licenseKey: ""
+    # Existing Secret for MANAGEMENT_RUNTIME_AUTO_ACTIVATE_LICENSE_KEY. Takes precedence over licenseKey.
+    licenseKeySecret:
+      name: ""
+      key: "MANAGEMENT_RUNTIME_AUTO_ACTIVATE_LICENSE_KEY"
+    # Env var name the API may read for a license key; populate that env via api.extraEnv if needed.
+    licenseKeyEnv: "MANAGEMENT_LICENSE_KEY"
+    productId: "pennyos"
+    confirmTransfer: false
+    renewBefore: "5m"
+  # Websocket command loop for managed runtime commands.
+  runtimeWebsocket:
+    enabled: true
+    url: ""
+  # Persistent writable storage for install keys and encrypted lease cache.
+  runtimeStorage:
+    enabled: true
+    existingClaim: ""
+    mountPath: "/var/lib/penny"
+    size: "1Gi"
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    annotations: {}
+
+# Data sync provider used by the Penny API.
+sync:
+  provider: "managed"
+
+# Gateway API HTTPRoute configuration for public web/API access.
 gateway:
   enabled: false
   publicScheme: "http"
   annotations: {}
   labels: {}
+  # ParentRefs are attached to generated HTTPRoutes.
   parentRefs: []
   web:
     host: "penny.local"
     pathPrefix: "/"
+    # Optional HTTP-to-HTTPS redirect route for the web host.
     httpsRedirect:
       enabled: false
       statusCode: 301
       parentRefs: []
   api:
     pathPrefix: "/v1"
+    # Optional separate API host. Otherwise API routes share gateway.web.host.
     separateHost:
       enabled: false
       host: "api.penny.local"
 
+# Migration hook job using the API image and bundled migration directories.
 migrations:
   enabled: true
+  # Migration service account controls. Set create=false and name to reuse an existing account.
   serviceAccount:
     create: true
     name: ""
     annotations: {}
     automountServiceAccountToken: false
+  # Hook timing differs by DB mode: external DB runs pre-install, bundled DB runs post-install.
   backoffLimit: 3
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 300
   annotations: {}
   podAnnotations: {}
   resources: {}
+  # Additional migration container environment.
   extraEnv: []
   extraEnvFrom: []
 
+# Optional Bitnami PostgreSQL dependency for single-chart installs.
 postgresql:
   enabled: false
+  # Used only when postgresql.enabled=true. By default, the bundled database uses
+  # the generated Secret; set existingSecret="" and password to supply a direct value.
   auth:
     username: penny
-    password: penny
+    password: ""
     database: penny
+    existingSecret: "{{ .Release.Name }}-pennyos-generated"
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: password
   primary:
     persistence:
       enabled: true

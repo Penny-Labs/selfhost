@@ -16,10 +16,11 @@ spec:
         {{- with .Values.api.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.api.podAnnotations }}
       annotations:
+        checksum/api-env-config: {{ include (print $.Template.BasePath "/api-configmap.yaml") . | sha256sum | quote }}
+        {{- with .Values.api.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "pennyos.apiServiceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
@@ -45,51 +46,16 @@ spec:
               containerPort: {{ .Values.api.containerPort }}
               protocol: TCP
           env:
-            - name: DB_HOSTNAME
-              value: {{ include "pennyos.db.host" . | quote }}
-            - name: DB_PORT
-              value: {{ include "pennyos.db.port" . | quote }}
-            - name: DB_NAME
-              value: {{ include "pennyos.db.name" . | quote }}
-            - name: DB_USER
-              value: {{ include "pennyos.db.user" . | quote }}
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "pennyos.db.passwordSecretName" . | quote }}
-                  key: {{ include "pennyos.db.passwordSecretKey" . | quote }}
-            - name: DB_SSLMODE
-              value: {{ include "pennyos.db.sslmode" . | quote }}
-            - name: IAM_TENANT
-              value: {{ .Values.auth.tenant | quote }}
-            - name: IAM_SESSION_SIGNING_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "pennyos.authSecretName" . | quote }}
-                  key: {{ .Values.auth.sessionSigningKeyKey | quote }}
-            - name: IAM_SESSION_SIGNING_KEY_ID
-              value: {{ .Values.auth.sessionSigningKeyId | quote }}
-            - name: IAM_SESSION_ISSUER
-              value: {{ .Values.auth.sessionIssuer | quote }}
-            - name: IAM_SESSION_AUDIENCE
-              value: {{ .Values.auth.sessionAudience | quote }}
-            - name: IAM_SESSION_TTL
-              value: {{ .Values.auth.sessionTTL | quote }}
-            - name: IAM_SESSION_COOKIE_NAME
-              value: {{ .Values.auth.sessionCookieName | quote }}
-            - name: IAM_SESSION_COOKIE_PATH
-              value: {{ .Values.auth.sessionCookiePath | quote }}
-            - name: IAM_SESSION_COOKIE_DOMAIN
-              value: {{ .Values.auth.sessionCookieDomain | quote }}
-            - name: IAM_COOKIE_SECURE
-              value: {{ ternary "true" "false" .Values.auth.cookieSecure | quote }}
+{{ include "pennyos.api.secretEnv" . | trim | indent 12 }}
             {{- with .Values.api.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.api.extraEnvFrom }}
           envFrom:
+            - configMapRef:
+                name: {{ include "pennyos.apiConfigMapName" . | quote }}
+            {{- with .Values.api.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -114,6 +80,17 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if .Values.management.runtimeStorage.enabled }}
+          volumeMounts:
+            - name: runtime-storage
+              mountPath: {{ .Values.management.runtimeStorage.mountPath | quote }}
+          {{- end }}
+      {{- if .Values.management.runtimeStorage.enabled }}
+      volumes:
+        - name: runtime-storage
+          persistentVolumeClaim:
+            claimName: {{ include "pennyos.runtimeStorageClaimName" . | quote }}
+      {{- end }}
       {{- with .Values.api.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

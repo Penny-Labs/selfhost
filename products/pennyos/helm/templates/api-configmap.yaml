@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pennyos.apiConfigMapName" . }}
+  labels:
+    {{- include "pennyos.api.labels" . | nindent 4 }}
+data:
+{{ include "pennyos.api.configData" . | trim | indent 2 }}
