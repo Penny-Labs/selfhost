@@ -92,6 +92,22 @@ checksum annotation for that ConfigMap, so changing ConfigMap-backed values
 rolls the API Deployment automatically. Secret values stay as `secretKeyRef`
 entries and are not copied into the ConfigMap.
 
+First-class non-secret API env mappings include:
+
+- `api.trustedProxyCIDRs` -> `HTTP_TRUSTED_PROXY_CIDRS`
+
+`api.trustedProxyCIDRs` defaults to an empty list, which renders
+`HTTP_TRUSTED_PROXY_CIDRS=""` and makes the API ignore forwarded client IP
+headers. Set it to your Gateway or load-balancer source CIDRs when client IP
+logging should trust `X-Forwarded-For`:
+
+```yaml
+api:
+  trustedProxyCIDRs:
+    - 10.0.0.0/8
+    - fd00::/8
+```
+
 Default managed runtime behavior:
 
 ```yaml
@@ -188,6 +204,7 @@ Default gateway behavior:
   - `gateway.web.httpsRedirect.enabled=true`
   - `gateway.web.httpsRedirect.statusCode` (default `301`)
   - `gateway.web.httpsRedirect.parentRefs` (required when enabled; typically points to your HTTP listener)
+- set `api.trustedProxyCIDRs` to your Gateway/load-balancer source CIDRs when you want the API to trust `X-Forwarded-For` for client IP logging
 
 Example HTTPS backend route + HTTP redirect route:
 
@@ -234,6 +251,7 @@ Hook behavior:
 
 - `api.serviceAccount.*`
 - `api.image.*`
+- `api.trustedProxyCIDRs`
 - `generatedSecrets.*`
 - `web.serviceAccount.*`
 - `web.image.*`

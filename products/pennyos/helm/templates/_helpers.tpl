@@ -364,6 +364,7 @@ IAM_SESSION_COOKIE_NAME: {{ .Values.auth.sessionCookieName | quote }}
 IAM_SESSION_COOKIE_PATH: {{ .Values.auth.sessionCookiePath | quote }}
 IAM_SESSION_COOKIE_DOMAIN: {{ .Values.auth.sessionCookieDomain | quote }}
 IAM_COOKIE_SECURE: {{ ternary "true" "false" .Values.auth.cookieSecure | quote }}
+HTTP_TRUSTED_PROXY_CIDRS: {{ join "," .Values.api.trustedProxyCIDRs | quote }}
 MANAGEMENT_MODE: {{ .Values.management.mode | quote }}
 MANAGEMENT_API_URL: {{ .Values.management.apiUrl | quote }}
 PENNY_RUNTIME_SECRET_DIR: {{ .Values.management.runtimeSecretDir | quote }}

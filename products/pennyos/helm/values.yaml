@@ -59,6 +59,9 @@ api:
     type: ClusterIP
     port: 8080
     targetPort: 8080
+  # CIDRs for proxies whose X-Forwarded-For client IPs the API should trust.
+  # Leave empty to ignore forwarded client IP headers.
+  trustedProxyCIDRs: []
   # Standard pod metadata, security, resource, and scheduling overrides.
   podAnnotations: {}
   podLabels: {}
