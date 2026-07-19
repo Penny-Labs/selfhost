@@ -51,7 +51,7 @@ api:
   # Penny API image. This image must contain the /penny binary and bundled migrations.
   image:
     repository: "ghcr.io/penny-labs/pennyos/system"
-    tag: "latest"
+    tag: "v1.0.0-beta.1"
     pullPolicy: IfNotPresent
   # Extra CLI args appended after `serve --port=<containerPort>`.
   extraArgs: []
@@ -107,7 +107,7 @@ web:
   # PennyOS web image. PENNY_OS_BUILD_PROFILE is build-time only for this image.
   image:
     repository: "ghcr.io/penny-labs/pennyos/web"
-    tag: "latest"
+    tag: "v1.0.0-beta.1"
     pullPolicy: IfNotPresent
   # Overrides NUXT_PUBLIC_PENNY_API_BASE_URL. Empty derives from gateway or in-cluster API service.
   apiBaseUrl: ""

@@ -1,24 +1,29 @@
 # PennyOS Combined Helm Chart
 
+V1 is available as the `1.0.0-beta.1` chart. It pins the Penny API and web
+images to `v1.0.0-beta.1`; override the image values only when testing a reviewed
+build from another registry.
+
 This chart deploys:
 - `penny` API
 - `penny_os` web
 - optional Bitnami PostgreSQL (`postgresql.enabled=true`)
 
-## Required Values
+## Image Values
 
-You must provide both image references:
+The beta images are pinned by default. To test a reviewed fork, override both
+references together:
 
 ```yaml
 api:
   image:
     repository: ghcr.io/your-org/penny
-    tag: "v1.2.3"
+    tag: "v1.0.0-beta.1"
 
 web:
   image:
     repository: ghcr.io/your-org/penny-os
-    tag: "v1.2.3"
+    tag: "v1.0.0-beta.1"
 ```
 
 By default, the chart runs a bootstrap hook job that generates install-local
@@ -31,6 +36,27 @@ PennyOS defaults to managed runtime mode. You must also provide:
 - `management.apiUrl`
 - `management.runtimeAutoActivate.licenseKey`, `management.runtimeAutoActivate.licenseKeySecret`, or an `api.extraEnv` entry matching `management.runtimeAutoActivate.licenseKeyEnv`
 
+For the recommended Kubernetes Secret flow, create the Secret before installing
+the chart. The value is consumed by Penny during startup auto-activation and is
+never copied into a ConfigMap:
+
+```bash
+kubectl create secret generic pennyos-management \
+  --from-literal=MANAGEMENT_RUNTIME_AUTO_ACTIVATE_LICENSE_KEY='<one-time-claimed-license-key>'
+```
+
+Then point the chart at that Secret:
+
+```yaml
+management:
+  apiUrl: https://management.example.com
+  runtimeAutoActivate:
+    enabled: true
+    licenseKeySecret:
+      name: pennyos-management
+      key: MANAGEMENT_RUNTIME_AUTO_ACTIVATE_LICENSE_KEY
+```
+
 If `generatedSecrets.enabled=false`, you must provide the auth signing key and
 runtime lease encryption key with direct values or existing Secret refs.
 
@@ -40,13 +66,8 @@ runtime lease encryption key with direct values or existing Secret refs.
 helm dependency update selfhost/products/pennyos/helm
 
 helm upgrade --install pennyos selfhost/products/pennyos/helm \
-  --set api.image.repository=ghcr.io/your-org/penny \
-  --set api.image.tag=v1.2.3 \
-  --set web.image.repository=ghcr.io/your-org/penny-os \
-  --set web.image.tag=v1.2.3 \
   --set postgresql.enabled=true \
   --set management.apiUrl=https://management.example.com \
-  --set management.apiTokenSecret.name=pennyos-management \
   --set management.runtimeAutoActivate.licenseKeySecret.name=pennyos-management
 ```
 
@@ -54,10 +75,6 @@ helm upgrade --install pennyos selfhost/products/pennyos/helm \
 
 ```bash
 helm upgrade --install pennyos selfhost/products/pennyos/helm \
-  --set api.image.repository=ghcr.io/your-org/penny \
-  --set api.image.tag=v1.2.3 \
-  --set web.image.repository=ghcr.io/your-org/penny-os \
-  --set web.image.tag=v1.2.3 \
   --set postgresql.enabled=false \
   --set database.host=postgres.example.internal \
   --set database.port=5432 \
@@ -65,7 +82,6 @@ helm upgrade --install pennyos selfhost/products/pennyos/helm \
   --set database.user=penny \
   --set database.password='replace-db-password' \
   --set management.apiUrl=https://management.example.com \
-  --set management.apiTokenSecret.name=pennyos-management \
   --set management.runtimeAutoActivate.licenseKeySecret.name=pennyos-management
 ```
 
@@ -158,6 +174,14 @@ without Secret refs create chart-managed Secrets:
 - `management.apiToken` / `management.apiTokenSecret` -> `MANAGEMENT_API_TOKEN`
 - `management.runtimeLeaseEncryptionKey` / `management.runtimeLeaseEncryptionKeySecret` -> `PENNY_RUNTIME_LEASE_ENC_KEY`
 - `management.runtimeAutoActivate.licenseKey` / `management.runtimeAutoActivate.licenseKeySecret` -> `MANAGEMENT_RUNTIME_AUTO_ACTIVATE_LICENSE_KEY`
+
+An initial `MANAGEMENT_API_TOKEN` is not required when auto-activation is
+enabled. Penny exchanges the license/install proof for an in-memory runtime
+lease and rotates that bearer token for managed API and websocket calls.
+
+If billing is suspended, the managed entitlement is denied immediately by the
+hosted service. Local PennyOS authentication, finance history, manual data, and
+other Base functionality remain available.
 
 When `generatedSecrets.enabled=true`, the chart-generated Secret is used as a
 fallback for `IAM_SESSION_SIGNING_KEY` and `PENNY_RUNTIME_LEASE_ENC_KEY` if no

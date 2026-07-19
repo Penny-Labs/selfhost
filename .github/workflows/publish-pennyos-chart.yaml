@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           TAG="${GITHUB_REF_NAME}"
-          if [[ ! "${TAG}" =~ ^chart-pennyos-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          if [[ ! "${TAG}" =~ ^chart-pennyos-v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
             echo "invalid tag format: ${TAG}" >&2
             exit 1
           fi

@@ -42,6 +42,11 @@ app.kubernetes.io/component: api
 app.kubernetes.io/component: web
 {{- end -}}
 
+{{- define "pennyos.migration.labels" -}}
+{{ include "pennyos.labels" . }}
+app.kubernetes.io/component: migration
+{{- end -}}
+
 {{- define "pennyos.api.selectorLabels" -}}
 {{ include "pennyos.selectorLabels" . }}
 app.kubernetes.io/component: api
@@ -50,6 +55,11 @@ app.kubernetes.io/component: api
 {{- define "pennyos.web.selectorLabels" -}}
 {{ include "pennyos.selectorLabels" . }}
 app.kubernetes.io/component: web
+{{- end -}}
+
+{{- define "pennyos.migration.selectorLabels" -}}
+{{ include "pennyos.selectorLabels" . }}
+app.kubernetes.io/component: migration
 {{- end -}}
 
 {{/* Resource name helpers */}}

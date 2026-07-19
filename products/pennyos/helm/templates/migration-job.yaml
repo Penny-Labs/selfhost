@@ -8,8 +8,7 @@ kind: Job
 metadata:
   name: {{ printf "%s-migrate" (include "pennyos.fullname" .) }}
   labels:
-    {{- include "pennyos.api.labels" . | nindent 4 }}
-    app.kubernetes.io/component: migration
+    {{- include "pennyos.migration.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": {{ $hookEvents | quote }}
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -24,8 +23,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "pennyos.api.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: migration
+        {{- include "pennyos.migration.selectorLabels" . | nindent 8 }}
       {{- with .Values.migrations.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
